@@ -18,11 +18,13 @@
 # Write your own HTTP GET and POST
 # The point is to understand what you have to send and get experience with it
 
+from base64 import encode
 import sys
 import socket
-import re
 # you may use urllib to encode data appropriately
+from urllib.parse import urlparse
 import urllib.parse
+
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -41,13 +43,17 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        header, body = data.split("\r\n\r\n")
+        code = header.split(" ")[1]
+        return int(code)
 
     def get_headers(self,data):
-        return None
+        header, body = data.split("\r\n\r\n")
+        return header
 
     def get_body(self, data):
-        return None
+        header, body = data.split("\r\n\r\n")
+        return body
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -68,14 +74,70 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
-        return HTTPResponse(code, body)
+        try:
+            url_parse = urlparse(url)
+            hostname=url_parse.hostname
+            port = url_parse.port
+            path = url_parse.path
+            query=url_parse.query
+            #check invalid path, port
+            path = path if len(path)!=0 else "/"
+            port = port if port is not None else 80
+            self.connect(hostname, port)
+            if args is None:
+                request = "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n".format(path, hostname)
+                self.sendall(request)
+                data = self.recvall(self.socket) 
+                code = self.get_code(data)
+                body = self.get_body(data)
+                self.close()
+                return HTTPResponse(code, body)
+            else:
+                path = path+'?'+query
+                request = "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n".format(path, hostname)
+                self.sendall(request)
+                data = self.recvall(self.socket)
+                code = self.get_code(data)
+                body = self.get_body(data)
+                self.close()
+                return HTTPResponse(code, body)
+
+
+        except:
+            print("Url is incorectly!")
+            return 
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
-        return HTTPResponse(code, body)
+        try:
+            url_parse = urlparse(url)
+            hostname=url_parse.hostname
+            port = url_parse.port
+            path = url_parse.path
+            path = path if len(path)!=0 else "/"
+            port = port if port is not None else 80
+            self.connect(hostname, port)
+            if args is None:
+                request = "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n".format(path, hostname, 'application/x-www-form-urlencoded', 0)
+                self.sendall(request)
+                data = self.recvall(self.socket)
+                code = self.get_code(data)
+                body = self.get_body(data)
+                self.close()
+                return HTTPResponse(code, body)
+            else:
+                encoded_args= urllib.parse.urlencode(args)
+                request = "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}".format(path, hostname, 'application/x-www-form-urlencoded', len(encoded_args), encoded_args)
+                self.sendall(request)
+                data = self.recvall(self.socket)
+                code = self.get_code(data)
+                body = self.get_body(data)
+                self.close()
+                return HTTPResponse(code, body)
+
+
+        except:
+            print("Url is incorectly!")
+            return 
 
     def command(self, url, command="GET", args=None):
         if (command == "POST"):
